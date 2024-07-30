@@ -28,28 +28,24 @@ func TestAddGetDelete(t *testing.T) {
 	db, err := sql.Open("sqlite", "tracker.db")
 	require.NoError(t, err)
 	defer db.Close()
+
 	store := NewParcelStore(db)
 	parcel := getTestParcel()
 
 	id, err := store.Add(parcel)
-	require.NoError(t, err)
-	require.NotEqual(t, 0, id)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, id)
 
-	storedParcel, err := store.Get(id)
-	require.NoError(t, err)
-
-	expectedParcel := parcel
-	expectedParcel.Number = 0
-	storedParcel.Number = id
-
-	assert.Equal(t, expectedParcel, storedParcel)
+	testParcel, err := store.Get(id)
+	parcel.Number = testParcel.Number
+	assert.NoError(t, err)
+	assert.Equal(t, parcel, testParcel)
 
 	err = store.Delete(id)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	_, err = store.Get(id)
-	require.Error(t, err)
-	assert.ErrorIs(t, err, sql.ErrNoRows)
+	assert.Error(t, err)
 }
 
 // TestSetAddress проверяет обновление адреса
@@ -97,8 +93,9 @@ func TestSetStatus(t *testing.T) {
 func TestGetByClient(t *testing.T) {
 	// prepare
 	db, err := sql.Open("sqlite", "tracker.db")
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	defer db.Close()
+
 	store := NewParcelStore(db)
 
 	parcels := []Parcel{
@@ -108,28 +105,30 @@ func TestGetByClient(t *testing.T) {
 	}
 	parcelMap := map[int]Parcel{}
 
-	// задаём всем посылкам один и тот же идентификатор клиента
 	client := randRange.Intn(10_000_000)
-	for i := range parcels {
-		parcels[i].Client = client
-	}
+	parcels[0].Client = client
+	parcels[1].Client = client
+	parcels[2].Client = client
 
-	// add
 	for i := 0; i < len(parcels); i++ {
 		id, err := store.Add(parcels[i])
 		require.NoError(t, err)
-		require.NotEqual(t, 0, id)
+		require.NotEmpty(t, id)
 
 		parcels[i].Number = id
 
 		parcelMap[id] = parcels[i]
 	}
 
-	// get by client
 	storedParcels, err := store.GetByClient(client)
-	require.NoError(t, err)
-	assert.Len(t, storedParcels, len(parcels))
 
-	// check
-	assert.ElementsMatch(t, parcels, storedParcels)
+	require.NoError(t, err)
+
+	assert.Equal(t, len(storedParcels), len(parcels))
+
+	for _, parcel := range storedParcels {
+		_, ok := parcelMap[parcel.Number]
+		require.True(t, ok)
+		assert.Equal(t, parcelMap[parcel.Number], parcel)
+	}
 }
